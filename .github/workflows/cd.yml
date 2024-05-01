@@ -1,0 +1,53 @@
+name: cd
+
+on:
+  push:
+    branches:
+      - "main"
+  workflow_dispatch: {}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: "read"
+      id-token: "write"
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Google Auth
+        id: "auth"
+        uses: "google-github-actions/auth@v2"
+        with:
+          workload_identity_provider: "projects/${{ secrets.GCLOUD_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github/providers/github-provider"
+          service_account: ${{ secrets.GA_SERVICE_ACCOUNT }}
+
+      - name: "Set up Cloud SDK"
+        uses: "google-github-actions/setup-gcloud@v2"
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker asia-northeast2-docker.pkg.dev
+
+      - name: Build Docker image
+        run: |
+          docker build \
+          --tag ${{ secrets.DOCKER_REPO }}/${{ secrets.GCLOUD_SERVICE }}:latest \
+          --tag ${{ secrets.DOCKER_REPO }}/${{ secrets.GCLOUD_SERVICE }}:${{ github.sha }} .
+
+      - name: Push Docker image
+        run: |
+          docker push ${{ secrets.DOCKER_REPO }}/${{ secrets.GCLOUD_SERVICE }}:latest
+          docker push ${{ secrets.DOCKER_REPO }}/${{ secrets.GCLOUD_SERVICE }}:${{ github.sha }}
+
+      - id: deploy
+        uses: "google-github-actions/deploy-cloudrun@v2"
+        with:
+          service: ${{ secrets.GCLOUD_SERVICE }}
+          image: ${{ secrets.DOCKER_REPO }}/${{ secrets.GCLOUD_SERVICE }}:latest
+          region: ${{ secrets.GCLOUD_REGION }}
+          flags: "--platform managed --allow-unauthenticated --set-env-vars SERVER_URL=${{ secrets.SERVER_URL }} --port 3000"
+
+      - name: "Use output"
+        run: 'curl "${{ steps.deploy.outputs.url }}"'
