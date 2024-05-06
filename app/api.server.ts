@@ -1,6 +1,7 @@
 type MessageType = {
   code: number
   message: string
+  stage: string
 }
 
 export const healthCheck = async (): Promise<MessageType> => {

@@ -47,6 +47,7 @@ export default function Index() {
       <p>healthcheck</p>
       <p>code: {data.code}</p>
       <p>message: {data.message}</p>
+      <p>stage: {data.stage === "prod" ? data.stage : "ENV not exists"}</p>
     </div>
   );
 }
